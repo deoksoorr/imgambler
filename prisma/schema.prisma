@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  boards      Board[]
+}
+
+model Board {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  posts       Post[]
+}
+
+model Post {
+  id        Int       @id @default(autoincrement())
+  postKey   String    @unique
+  title     String
+  content   String
+  imageUrl  String?
+  userCode  String
+  fileUrls  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+  isPinned  Boolean   @default(false)
+  isNotice  Boolean   @default(false)
+  isDeleted Boolean   @default(false)
+  likes     Int       @default(0)
+  dislikes  Int       @default(0)
+  views     Int       @default(0)
+  boardId   Int
+  comments  Comment[]
+  board     Board     @relation(fields: [boardId], references: [id])
+  user      User      @relation("UserToPost", fields: [userCode], references: [email])
+  votes     Vote[]
+
+  @@index([boardId])
+  @@index([isPinned])
+  @@index([isNotice])
+  @@index([createdAt])
+}
+
+model Vote {
+  id        Int      @id @default(autoincrement())
+  userEmail String
+  postId    Int
+  voteType  String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([userEmail, postId])
+  @@index([postId])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String
+  author    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+  userEmail String
+  postId    Int
+  parentId  Int?
+  deleted   Boolean   @default(false)
+  parent    Comment?  @relation("CommentToComment", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentToComment")
+  post      Post      @relation(fields: [postId], references: [id])
+
+  @@index([postId])
+  @@index([parentId])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("USER")
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  posts         Post[]    @relation("UserToPost")
+  sessions      Session[]
+
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Banner {
+  id          Int      @id @default(autoincrement())
+  type        String
+  category    String   @default("MAIN")
+  fileUrl     String?
+  externalUrl String?
+  slogan      String?
+  buttonText  String?
+  buttonLink  String?
+  mainLink    String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([order])
+}
+
+model BannerConfig {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+
+model Casino {
+  id          Int      @id @default(autoincrement())
+  name        String
+  imageUrl    String
+  safetyLevel String
+  link        String
+  type        String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([order])
+}
