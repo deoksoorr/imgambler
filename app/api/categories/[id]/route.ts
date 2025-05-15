@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
-const ADMIN_EMAILS = ['a2381016@gmail.com']
+const ADMIN_EMAILS = ['deoksoo.kim@gmail.com', 'a2381016@gmail.com']
 
 export async function PATCH(
   request: Request,
@@ -20,12 +20,16 @@ export async function PATCH(
   }
 
   try {
-    const category = await prisma.category.update({
+    const updatedCategory = await prisma.category.update({
       where: { id: parseInt(params.id) },
-      data: { name, description },
+      data: {
+        name: name.toUpperCase(),
+        description
+      }
     })
-    return NextResponse.json(category)
+    return NextResponse.json(updatedCategory)
   } catch (error) {
+    console.error('Failed to update category:', error)
     return NextResponse.json(
       { error: 'Failed to update category' },
       { status: 500 }

@@ -59,7 +59,7 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
   const { data: session } = useSession()
 
   const handleDelete = async () => {
-    if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) return
+    if (!confirm('Are you sure you want to delete this post?')) return
 
     try {
       const response = await fetch(`/api/board/${params.categorySlug}/${params.boardSlug}/${params.postKey}`, {
@@ -71,11 +71,11 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
         router.push(`/board/${params.categorySlug}/${params.boardSlug}`)
         router.refresh()
       } else {
-        alert('게시글 삭제에 실패했습니다.')
+        alert('Failed to delete the post.')
       }
     } catch (error) {
       console.error('Error deleting post:', error)
-      alert('게시글 삭제 중 오류가 발생했습니다.')
+      alert('An error occurred while deleting the post.')
     }
   }
 
@@ -89,7 +89,7 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
 
   const handleEdit = async () => {
     if (!editTitle.trim() || !editContent.trim()) {
-      alert('제목과 내용을 모두 입력해주세요.')
+      alert('Please enter both title and content.')
       return
     }
     setIsLoading(true)
@@ -122,11 +122,11 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
         setImagePreview(imageUrl)
         setImageFile(null)
       } else {
-        alert('게시글 수정에 실패했습니다.')
+        alert('Failed to update the post.')
       }
     } catch (error) {
       console.error('Error updating post:', error)
-      alert('게시글 수정 중 오류가 발생했습니다.')
+      alert('An error occurred while updating the post.')
     } finally {
       setIsLoading(false)
     }
@@ -197,7 +197,7 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
   return (
     <div className="w-full max-w-3xl mx-auto mt-12">
       <div className="mb-4">
-        <button onClick={goBackToBoard} className="text-blue-600 hover:text-blue-800">← 게시판으로 돌아가기</button>
+        <button onClick={goBackToBoard} className="text-blue-600 hover:text-blue-800">← Back to Board</button>
       </div>
       <div className="bg-white rounded-lg shadow p-8 border border-gray-300">
         {/* 상단: 제목/작성자/날짜/조회 */}
@@ -210,11 +210,11 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
               ) : (
                 <img src={getProfileImg(post)} alt="profile" className="w-6 h-6 rounded-full object-cover" />
               )}
-              {post.isNotice ? 'Manager' : (post.user?.name || '익명')}
+              {post.isNotice ? 'Manager' : (post.user?.name || 'Anonymous')}
             </span>
-            <span>작성일: {formatDate(post.createdAt)}</span>
-            <span>조회: {post.views}</span>
-            {post.updatedAt && <span>수정됨: {formatDate(post.updatedAt)}</span>}
+            <span>Date: {formatDate(post.createdAt)}</span>
+            <span>Views: {post.views}</span>
+            {post.updatedAt && <span>Edited: {formatDate(post.updatedAt)}</span>}
           </div>
         </div>
         {/* 첨부 이미지: 본문 위 */}
@@ -236,16 +236,16 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-              placeholder="제목"
+              placeholder="Title"
             />
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[200px] text-black"
-              placeholder="내용"
+              placeholder="Content"
             />
             <div>
-              <label className="block font-bold text-gray-900 mb-1">이미지 첨부</label>
+              <label className="block font-bold text-gray-900 mb-1">Attach Image</label>
               <div className="flex items-center gap-4">
                 <input type="file" accept="image/*" onChange={handleImageChange} className="border p-2 rounded font-bold text-gray-900" />
                 {imagePreview && (
@@ -266,14 +266,14 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
                 className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                 disabled={isLoading}
               >
-                취소
+                Cancel
               </button>
               <button
                 onClick={handleEdit}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 disabled={isLoading}
               >
-                {isLoading ? '수정 중...' : '수정'}
+                {isLoading ? 'Editing...' : 'Edit'}
               </button>
             </div>
           </div>
@@ -311,13 +311,13 @@ export default function PostClient({ post, params }: { post: Post, params: { cat
               onClick={() => setIsEditing(true)}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              수정
+              Edit
             </button>
             <button
               onClick={handleDelete}
               className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
             >
-              삭제
+              Delete
             </button>
           </div>
         )}

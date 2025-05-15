@@ -24,13 +24,13 @@ export default async function BoardPage({
     if (!category) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">카테고리를 찾을 수 없습니다</h1>
-          <p className="text-gray-600 mb-8">요청하신 카테고리가 존재하지 않거나 삭제되었습니다.</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Category not found</h1>
+          <p className="text-gray-600 mb-8">The requested category does not exist or has been deleted.</p>
           <Link 
             href="/"
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
-            홈으로 돌아가기
+            Back to Home
           </Link>
         </div>
       )
@@ -66,13 +66,13 @@ export default async function BoardPage({
     if (!board) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">게시판을 찾을 수 없습니다</h1>
-          <p className="text-gray-600 mb-8">요청하신 게시판이 존재하지 않거나 삭제되었습니다.</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Board not found</h1>
+          <p className="text-gray-600 mb-8">The requested board does not exist or has been deleted.</p>
           <Link 
             href="/"
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
-            홈으로 돌아가기
+            Back to Home
           </Link>
         </div>
       )
@@ -86,10 +86,10 @@ export default async function BoardPage({
         category: post.board.category
       },
       user: post.user ? {
-        name: post.user.name || '익명',
+        name: post.user.name || 'Anonymous',
         image: post.user.image || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.userCode || 'user'}`
       } : {
-        name: '익명',
+        name: 'Anonymous',
         image: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.userCode || 'user'}`
       }
     }))
@@ -105,13 +105,13 @@ export default async function BoardPage({
     console.error('Error in BoardPage:', error)
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">오류가 발생했습니다</h1>
-        <p className="text-gray-600 mb-8">페이지를 불러오는 중 문제가 발생했습니다.</p>
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">An error occurred</h1>
+        <p className="text-gray-600 mb-8">An error occurred while loading the page.</p>
         <Link 
           href="/"
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         >
-          홈으로 돌아가기
+          Back to Home
         </Link>
       </div>
     )

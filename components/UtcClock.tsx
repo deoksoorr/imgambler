@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 
 export default function UtcClock() {
+  // SSR/CSR hydration 불일치 방지: 초기값은 ''로 두고, useEffect에서만 시간 값을 갱신
   const [now, setNow] = useState<string>('')
 
   useEffect(() => {

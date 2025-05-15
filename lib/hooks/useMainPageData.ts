@@ -61,7 +61,7 @@ export function useMainPageData() {
   const [latestPosts, setLatestPosts] = useState<Post[]>([])
   const [postsLoading, setPostsLoading] = useState(true)
   const [postsError, setPostsError] = useState<string | null>(null)
-  // 슬라이드 배너 상태
+  // 슬라이드 배너 상태 (SSR/CSR hydration 불일치 방지: 초기값 고정)
   const [current, setCurrent] = useState(0)
   const [intervalMs, setIntervalMs] = useState(4000)
   const [progress, setProgress] = useState(0)

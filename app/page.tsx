@@ -19,6 +19,41 @@ interface Banner {
   order: number
 }
 
+interface Category {
+  id: number
+  name: string
+  slug: string
+  description: string
+  postCount: number
+  boards: {
+    id: number
+    name: string
+    slug: string
+    description: string
+    postCount: number
+  }[]
+}
+
+interface Post {
+  id: number
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  viewCount: number
+  commentCount: number
+  categoryId: number
+  category: Category
+}
+
+interface Comment {
+  id: number
+  content: string
+  createdAt: string
+  postId: number
+  post: Post
+}
+
 // 게시판 id→이름 매핑 함수
 function getBoardName(boardId: number, categories: any[]): string {
   for (const cat of categories) {
@@ -61,6 +96,97 @@ export default function Home() {
     tab, setTab,
     newsletterAgree, setNewsletterAgree
   } = useMainPageData();
+
+  const [categoriesState, setCategoriesState] = useState<Category[]>([])
+  const [postsState, setPostsState] = useState<Post[]>([])
+  const [categoriesLoadingState, setCategoriesLoadingState] = useState(true)
+  const [postsLoadingState, setPostsLoadingState] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setCategoriesLoadingState(true)
+        setPostsLoadingState(true)
+
+        const [categoriesRes, postsRes] = await Promise.all([
+          fetch('/api/categories'),
+          fetch('/api/posts')
+        ]);
+
+        if (!categoriesRes.ok || !postsRes.ok) {
+          throw new Error('Failed to fetch data');
+        }
+
+        const [categories, posts] = await Promise.all([
+          categoriesRes.json(),
+          postsRes.json()
+        ]);
+
+        setCategoriesState(categories);
+        setPostsState(posts);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setCategoriesLoadingState(false)
+        setPostsLoadingState(false)
+      }
+    };
+
+    fetchData();
+
+    // API 응답 처리 함수
+    const handleApiResponse = async (response: Response, type: string) => {
+      console.log('API 응답 처리 시작:', { type, response })
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+      const data = await response.json();
+      console.log('API 응답 데이터:', data)
+      
+      let message = '';
+      switch(type) {
+        case 'category_add':
+          message = `새로운 카테고리 "${data.name}"가 추가되었습니다.`;
+          break;
+        case 'category_edit':
+          message = `카테고리 "${data.name}"가 수정되었습니다.`;
+          break;
+        case 'category_delete':
+          message = `카테고리 "${data.name}"가 삭제되었습니다.`;
+          break;
+        case 'board_add':
+          message = `새로운 게시판 "${data.name}"가 추가되었습니다.`;
+          break;
+        case 'board_edit':
+          message = `게시판 "${data.name}"가 수정되었습니다.`;
+          break;
+        case 'board_delete':
+          message = `게시판 "${data.name}"가 삭제되었습니다.`;
+          break;
+      }
+
+      console.log('알림 메시지:', message)
+      alert(message);
+      console.log('페이지 새로고침 시도')
+      window.location.reload();
+    };
+
+    // 이벤트 리스너
+    const handleCategoryChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { type, response } = customEvent.detail;
+      handleApiResponse(response, type).catch(error => {
+        console.error('Error handling category change:', error);
+        alert('작업 처리 중 오류가 발생했습니다.');
+      });
+    };
+
+    window.addEventListener('categoryChange', handleCategoryChange);
+
+    return () => {
+      window.removeEventListener('categoryChange', handleCategoryChange);
+    };
+  }, []);
 
   if (bannersLoading || categoriesLoading || postsLoading) return <div className="w-screen h-96 flex items-center justify-center text-gray-400">Loading...</div>
   if (bannersError || categoriesError || postsError) return <div className="w-screen h-96 flex items-center justify-center text-red-400">데이터 로딩 실패</div>
@@ -158,13 +284,13 @@ export default function Home() {
             <div className="text-2xl font-extrabold text-gray-800 mb-4 flex items-center gap-2">
               <FaThLarge className="text-green-500" /> Forum categories
             </div>
-            {categories.length === 0 ? (
+            {categoriesState.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <FaRegSadTear className="text-5xl mb-2" />
                 카테고리가 없습니다.
               </div>
             ) : (
-              categories.map(category => (
+              categoriesState.map(category => (
                 <div key={category.id} className="mb-8">
                   <div className="text-lg font-bold text-gray-700 mb-2 flex items-center gap-2">
                     <FaRegFolderOpen className="text-gray-400" /> {category.name}
@@ -327,13 +453,13 @@ export default function Home() {
             <div className="text-2xl font-extrabold text-gray-800 mb-4 flex items-center gap-2">
               <FaThLarge className="text-green-500" /> Forum categories
             </div>
-            {categories.length === 0 ? (
+            {categoriesState.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <FaRegSadTear className="text-5xl mb-2" />
                 카테고리가 없습니다.
               </div>
             ) : (
-              categories.map(category => (
+              categoriesState.map(category => (
                 <div key={category.id} className="mb-8">
                   <div className="text-lg font-bold text-gray-700 mb-2 flex items-center gap-2">
                     <FaRegFolderOpen className="text-gray-400" /> {category.name}

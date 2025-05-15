@@ -81,32 +81,16 @@ export async function PATCH(
 
   try {
     const { name, description, categoryId } = await request.json()
+    
+    // 새로운 slug 생성
     const newSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-
-    // Check if new slug already exists (excluding current board)
-    const existingBoard = await prisma.board.findFirst({
-      where: {
-        slug: newSlug,
-        NOT: {
-          slug: params.slug
-        }
-      }
-    })
-
-    if (existingBoard) {
-      return NextResponse.json(
-        { error: 'A board with this name already exists' },
-        { status: 400 }
-      )
-    }
-
-    // Update board with new slug
+    
     const board = await prisma.board.update({
       where: { slug: params.slug },
       data: {
         name,
         description,
-        categoryId,
+        categoryId: parseInt(categoryId),
         slug: newSlug
       }
     })

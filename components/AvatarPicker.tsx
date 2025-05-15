@@ -1,14 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const AVATAR_COUNT = 8
 const getRandomSeed = () => Math.random().toString(36).substring(2, 10)
 const getAvatarUrl = (seed: string) => `https://api.dicebear.com/7.x/pixel-art/svg?seed=${seed}`
 
 export default function AvatarPicker({ onClose }: { onClose: () => void }) {
-  // 여러 개의 랜덤 seed 생성
-  const [seeds, setSeeds] = useState<string[]>(Array.from({ length: AVATAR_COUNT }, getRandomSeed))
-  const [selected, setSelected] = useState<string>(seeds[0])
+  // SSR/CSR hydration 불일치 방지: 초기값은 빈 배열, useEffect에서만 랜덤 seed 생성
+  const [seeds, setSeeds] = useState<string[]>([])
+  const [selected, setSelected] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    const newSeeds = Array.from({ length: AVATAR_COUNT }, getRandomSeed)
+    setSeeds(newSeeds)
+    setSelected(newSeeds[0])
+  }, [])
 
   const handleRandom = () => {
     const newSeeds = Array.from({ length: AVATAR_COUNT }, getRandomSeed)
