@@ -60,7 +60,7 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !content.trim()) {
-      alert('제목과 내용을 모두 입력해주세요.')
+      alert('Please enter both title and content.')
       return
     }
     setIsLoading(true)
@@ -85,10 +85,10 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
         router.push(`/board/${params.categorySlug}/${params.boardSlug}`)
         router.refresh()
       } else {
-        alert('글 작성에 실패했습니다.')
+        alert('Failed to create the post.')
       }
     } catch (error) {
-      alert('글 작성 중 오류가 발생했습니다.')
+      alert('An error occurred while creating the post.')
     } finally {
       setIsLoading(false)
     }
@@ -96,14 +96,14 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
 
   return (
     <div className="w-full max-w-4xl mx-auto mt-10 bg-white rounded-lg shadow p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">글쓰기</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Write Post</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="제목을 입력하세요"
+            placeholder="Enter a title"
             className="w-full px-4 py-3 border border-gray-400 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400 font-medium"
             maxLength={100}
             required
@@ -113,13 +113,13 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
           <textarea
             value={content}
             onChange={e => setContent(e.target.value)}
-            placeholder="내용을 입력하세요"
+            placeholder="Enter content"
             className="w-full px-4 py-3 border border-gray-400 rounded-lg min-h-[180px] text-base focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400 font-medium"
             required
           />
         </div>
         <div>
-          <label className="block font-bold mb-2 text-gray-800">이미지 첨부</label>
+          <label className="block font-bold mb-2 text-gray-800">Attach Image</label>
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -140,17 +140,17 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
               onClick={() => fileInputRef.current?.click()}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-bold"
             >
-              이미지 선택
+              Select Image
             </button>
-            <span className="text-gray-700 text-sm select-none font-medium">여기로 이미지를 드래그하거나 클릭해서 업로드</span>
+            <span className="text-gray-700 text-sm select-none font-medium">Drag and drop or click to upload an image</span>
             {imagePreview && (
               <div className="relative">
-                <img src={imagePreview} alt="미리보기" className="w-24 h-24 object-cover rounded border border-gray-400" />
+                <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded border border-gray-400" />
                 <button
                   type="button"
                   onClick={handleImageRemove}
                   className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-                  title="이미지 삭제"
+                  title="Remove Image"
                 >
                   ×
                 </button>
@@ -165,14 +165,14 @@ export default function WritePage({ params }: { params: { categorySlug: string; 
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-bold"
             disabled={isLoading}
           >
-            취소
+            Cancel
           </button>
           <button
             type="submit"
             className="px-6 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 font-bold"
             disabled={isLoading}
           >
-            {isLoading ? '작성 중...' : '작성하기'}
+            {isLoading ? 'Posting...' : 'Post'}
           </button>
         </div>
       </form>

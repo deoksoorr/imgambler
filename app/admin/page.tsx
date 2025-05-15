@@ -3,9 +3,10 @@
 import React from 'react'
 import { useState, useEffect, ChangeEvent } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import AuthButtons from '@/components/AuthButtons'
 import BannerManager from '@/components/BannerManager'
+import UserManager from '@/components/UserManager'
 
 interface Category {
   id: number
@@ -50,24 +51,28 @@ interface User {
 }
 
 interface Post {
-  id: number
-  title: string
-  content: string
-  postKey: string
-  isNotice: boolean
-  isPinned: boolean
-  createdAt: string
+  id: number,
+  title: string,
+  content: string,
+  postKey: string,
+  isNotice: boolean,
+  isPinned: boolean,
+  createdAt: string,
+  boardId: number,
+  likes?: number,
+  dislikes?: number,
   user?: {
-    name: string | null
-  }
+    name: string | null,
+  },
   board?: {
-    id: number
-    name: string
-  }
-  imageUrl?: string
+    id: number,
+    name: string,
+  },
+  imageUrl?: string,
+  score?: number,
 }
 
-type AdminMenu = 'notice' | 'posts' | 'users' | 'category' | 'board' | 'banner' | 'casino'
+type AdminMenu = 'notice' | 'users' | 'category' | 'board' | 'banner' | 'casino' | 'pinned'
 
 interface CategoryInlineEditFormProps {
   category: Category
@@ -85,15 +90,33 @@ interface PostAdminManagerProps {
 
 interface UserManagerProps {}
 
+// Board 인라인 수정 폼 컴포넌트
+function BoardInlineEditForm({ board, onCancel, onSave }: { board: Board, onCancel: () => void, onSave: (name: string, description: string) => void }) {
+  const [name, setName] = useState(board.name)
+  const [description, setDescription] = useState(board.description || '')
+
+  return (
+    <form
+      onSubmit={e => { e.preventDefault(); onSave(name, description) }}
+      className="flex-1 flex gap-2 min-w-0 w-full"
+    >
+      <input value={name} onChange={e => setName(e.target.value)} className="border p-2 rounded text-gray-900 flex-1" required />
+      <input value={description} onChange={e => setDescription(e.target.value)} className="border p-2 rounded text-gray-900 flex-1" />
+      <button type="submit" className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 font-medium">Save</button>
+      <button type="button" onClick={onCancel} className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 font-medium">Cancel</button>
+    </form>
+  )
+}
+
 function CategoryInlineEditForm({ category, onCancel, onSave }: CategoryInlineEditFormProps) {
   const [name, setName] = useState(category.name)
   const [description, setDescription] = useState(category.description || '')
 
   return (
     <form
-      onSubmit={e => {
+      onSubmit={async e => {
         e.preventDefault()
-        onSave(name, description)
+        await onSave(name, description)
       }}
       className="flex-1 flex gap-2 min-w-0 w-full"
       role="form"
@@ -305,7 +328,7 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState<'createdAt' | 'title'>('createdAt')
+  const [sortBy, setSortBy] = useState<'createdAt' | 'title' | 'score'>('createdAt')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [filter, setFilter] = useState<'all' | 'notice' | 'pinned'>('all')
   const [page, setPage] = useState(1)
@@ -328,7 +351,7 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
         filter,
         search: searchQuery,
       })
-      const res = await fetch(`/api/board/${getBoardSlug(boardId)}/posts?${queryParams}`)
+      const res = await fetch(`/api/posts?boardId=${boardId}&${queryParams}`)
       if (!res.ok) throw new Error('게시글 불러오기 실패')
       const data = await res.json()
       setPosts(data.posts || [])
@@ -367,16 +390,16 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
   const handlePin = async (post: any, isPinned: boolean) => {
     setLoading(true)
     setError('')
+    setPosts(prevPosts => prevPosts.map(p => p.id === post.id ? { ...p, isPinned } : p))
     try {
-      const res = await fetch(`/api/board/${getBoardSlug(boardId)}/${post.postKey}`, {
+      const res = await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isPinned }),
         credentials: 'include',
       })
       if (!res.ok) throw new Error('핀 상태 변경 실패')
-      fetchPosts()
-      if (selectedPost) setSelectedPost(null)
+      setSelectedPost(null)
     } catch (err) {
       setError('핀 상태 변경에 실패했습니다.')
     } finally {
@@ -389,35 +412,16 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/board/${getBoardSlug(boardId)}/${post.postKey}`, {
+      const res = await fetch(`/api/posts/${post.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
       if (!res.ok) throw new Error('삭제 실패')
-      fetchPosts()
-      if (selectedPost) setSelectedPost(null)
+      // posts 상태에서 해당 글을 즉시 제거
+      setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id))
+      setSelectedPost(null)
     } catch (err) {
       setError('삭제에 실패했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleNotice = async (post: any, isNotice: boolean) => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/board/${getBoardSlug(boardId)}/${post.postKey}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isNotice }),
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('공지 상태 변경 실패')
-      fetchPosts()
-      if (selectedPost) setSelectedPost(null)
-    } catch (err) {
-      setError('공지 상태 변경에 실패했습니다.')
     } finally {
       setLoading(false)
     }
@@ -430,15 +434,20 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
         <select
           value={boardId}
           onChange={e => { setBoardId(e.target.value); setSelectedPost(null); setPage(1); }}
-          className="border p-2 rounded w-full max-w-xs font-bold text-gray-900 placeholder-gray-700"
+          className="border-2 border-blue-600 p-2 rounded w-full font-bold text-gray-900 placeholder-gray-700 text-lg"
+          style={{ minWidth: '400px', width: '100%' }}
         >
           <option value="">게시판을 선택하세요</option>
           {categories.flatMap(cat =>
-            cat.boards.map(board => (
-              <option key={board.id} value={board.id}>
-                [{cat.name}] {board.name}
-              </option>
-            ))
+            cat.boards.map(board => {
+              // 고정글 개수 계산: posts 전체에서 boardId와 isPinned로 필터링
+              const pinnedCount = posts.filter((p: Post) => p.boardId === board.id && p.isPinned).length
+              return (
+                <option key={board.id} value={board.id}>
+                  [{cat.name}] {board.name} [{pinnedCount}]
+                </option>
+              )
+            })
           )}
         </select>
       </div>
@@ -468,21 +477,23 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
 
           <div className="mb-4 flex gap-2">
             <button
-              onClick={() => handleSort('createdAt')}
-              className={`px-3 py-1 rounded ${
-                sortBy === 'createdAt' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-              }`}
+              onClick={() => {
+                setSortBy('createdAt');
+                setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+              }}
+              className={`px-3 py-1 rounded font-bold ${sortBy === 'createdAt' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}
             >
-              작성일 {sortBy === 'createdAt' && (sortOrder === 'asc' ? '↑' : '↓')}
+              {sortBy === 'createdAt' && sortOrder === 'desc' ? '최신순' : '오래된순'}
             </button>
             <button
-              onClick={() => handleSort('title')}
-              className={`px-3 py-1 rounded ${
-                sortBy === 'title' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-              }`}
+              onClick={() => {
+                setSortBy('score');
+                setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+              }}
+              className={`px-3 py-1 rounded font-bold ${sortBy === 'score' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}
             >
-              제목 {sortBy === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
-        </button>
+              {sortBy === 'score' && sortOrder === 'desc' ? '높은 추천순' : '낮은 추천순'}
+            </button>
           </div>
         </>
       )}
@@ -493,20 +504,45 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
       {!selectedPost ? (
         <div className="space-y-2">
           {posts.length === 0 && boardId && <div className="text-gray-400">게시글이 없습니다.</div>}
-          {posts.map(post => (
-            <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-gray-900 truncate">
-                  {post.isNotice && <span className="text-red-600 mr-2">[공지]</span>}
-                  {post.isPinned && <span className="text-blue-600 mr-2">[고정]</span>}
-                  {post.title}
+          {posts
+            .filter((post: Post) => !post.isNotice && String(post.boardId) === String(boardId))
+            .sort((a: Post, b: Post) => {
+              if (sortBy === 'createdAt') {
+                return sortOrder === 'desc'
+                  ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                  : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+              } else if (sortBy === 'score') {
+                const scoreA = (a.likes || 0) - (a.dislikes || 0)
+                const scoreB = (b.likes || 0) - (b.dislikes || 0)
+                return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+              }
+              return 0
+            })
+            .map((post: Post) => (
+              <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 truncate">
+                    {post.isNotice && <span className="text-red-600 mr-2">[공지]</span>}
+                    {post.isPinned && <span className="text-blue-600 mr-2">[고정]</span>}
+                    {post.title}
+                  </div>
+                  <div className="text-gray-900 font-bold">작성자: {post.user?.name || 'Anonymous'}</div>
+                  <div className="text-gray-900 font-bold">등록일: {new Date(post.createdAt).toLocaleDateString()}</div>
+                  <div className="text-gray-900 font-bold">
+                    Score: {Number(post.likes) - Number(post.dislikes)}
+                  </div>
                 </div>
-                <div className="text-gray-900 font-bold">작성자: {post.user?.name || 'Anonymous'}</div>
-                <div className="text-gray-900 font-bold">등록일: {new Date(post.createdAt).toLocaleDateString()}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelectedPost(post)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">상세</button>
+                  <button 
+                    onClick={() => handlePin(post, !post.isPinned)} 
+                    className={`px-3 py-1 rounded ${post.isPinned ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-yellow-500`}
+                  >
+                    {post.isPinned ? 'Unpin' : 'Pin'}
+                  </button>
+                </div>
               </div>
-              <button onClick={() => setSelectedPost(post)} className="ml-4 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">상세</button>
-                </div>
-          ))}
+            ))}
 
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-4">
@@ -541,8 +577,7 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
           <div className="mb-2 text-gray-900 font-bold">작성자: {selectedPost.user?.name || 'Anonymous'}</div>
           <div className="text-gray-900 font-bold">등록일: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
           <div className="flex gap-2 mt-4">
-            <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded ${selectedPost.isPinned ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-yellow-500`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
-            <button onClick={() => handleNotice(selectedPost, !selectedPost.isNotice)} className={`px-3 py-1 rounded ${selectedPost.isNotice ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-green-600`}>{selectedPost.isNotice ? '공지 해제' : '공지 등록'}</button>
+            <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded ${selectedPost.isPinned ? 'bg-yellow-400 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
             <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">삭제</button>
             <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">목록</button>
           </div>
@@ -552,92 +587,17 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
   )
 }
 
-function UserManager() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    fetchUsers()
-  }, [])
-
-  const fetchUsers = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/users')
-      if (!res.ok) throw new Error('유저 목록을 불러오는데 실패했습니다.')
-      const data = await res.json()
-      setUsers(data)
-    } catch (err) {
-      setError('유저 목록을 불러오는데 실패했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleToggleAdmin = async (userId: string, currentIsAdmin: boolean) => {
-    if (!confirm(`관리자 권한을 ${currentIsAdmin ? '해제' : '부여'}하시겠습니까?`)) return
-    
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/users/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isAdmin: !currentIsAdmin }),
-      })
-      if (!res.ok) throw new Error('권한 변경에 실패했습니다.')
-      fetchUsers()
-    } catch (err) {
-      setError('권한 변경에 실패했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">유저 관리</h2>
-      {loading && <div className="text-blue-600">로딩 중...</div>}
-      {error && <div className="text-red-600">{error}</div>}
-      <div className="space-y-2">
-        {users.map(user => (
-          <div key={user.id} className="p-4 border rounded bg-white flex items-center justify-between">
-            <div className="flex-1">
-              <div className="font-bold text-gray-900">{user.name}</div>
-              <div className="text-sm text-gray-900">{user.email}</div>
-              <div className="text-xs text-gray-900">
-                가입일: {new Date(user.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-            <button
-              onClick={() => handleToggleAdmin(user.id, user.isAdmin)}
-              className={`px-4 py-2 rounded ${
-                user.isAdmin 
-                  ? 'bg-red-600 hover:bg-red-700' 
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white`}
-            >
-              {user.isAdmin ? '관리자 해제' : '관리자 지정'}
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function AdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
   const [categories, setCategories] = useState<Category[]>([])
   const [boards, setBoards] = useState<Board[]>([])
   const [newCategory, setNewCategory] = useState({ name: '', description: '' })
   const [newBoard, setNewBoard] = useState({ name: '', description: '', categoryId: '' })
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [editingBoard, setEditingBoard] = useState<Board | null>(null)
-  const [activeMenu, setActiveMenu] = useState<AdminMenu>('category')
+  const [activeMenu, setActiveMenu] = useState<AdminMenu>('notice')
   const [inlineEditingCategoryId, setInlineEditingCategoryId] = useState<number | null>(null)
   const [casinos, setCasinos] = useState<Casino[]>([])
   const [casinoForm, setCasinoForm] = useState<CasinoForm>({ name: '', imageUrl: null, safetyLevel: '', link: '', type: 'best' })
@@ -649,13 +609,61 @@ export default function AdminPage() {
   const [casinoSpeedSaved, setCasinoSpeedSaved] = useState(false)
   const [casinoTab, setCasinoTab] = useState('best')
   const [inlineEditId, setInlineEditId] = useState<number | null>(null)
-  const [inlineForm, setInlineForm] = useState<{ name: string; safetyLevel: string; link: string; type: string; imageUrl?: string | null; order?: number }>({ name: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 })
+  const [inlineForm, setInlineForm] = useState<{ name: string; description: string; safetyLevel: string; link: string; type: string; imageUrl?: string | null; order?: number }>({ name: '', description: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 })
   const [loading, setLoading] = useState(false)
-  const [menu, setMenu] = useState<'notice' | 'posts' | 'users'>('notice')
+  const [error, setError] = useState('')
+  const [menu, setMenu] = useState<'notice' | 'users'>('notice')
   const [editingNoticeId, setEditingNoticeId] = useState<number | null>(null)
   const [notices, setNotices] = useState<Post[]>([])
   const [selectedNotices, setSelectedNotices] = useState<Post[]>([])
   const [showNoticeForm, setShowNoticeForm] = useState(false)
+  const [boardId, setBoardId] = useState('')
+  const [posts, setPosts] = useState<Post[]>([])
+  const [selectedPost, setSelectedPost] = useState<any | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'createdAt' | 'title' | 'score'>('createdAt')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [filter, setFilter] = useState<'all' | 'notice' | 'pinned'>('all')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const postsPerPage = 10
+
+  // 정렬 함수
+  const getSortedPosts = (): Post[] => {
+    let sorted = [...posts]
+    // 검색어 필터 적용
+    if (searchQuery.trim()) {
+      sorted = sorted.filter(post => post.title.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    }
+    if (sortBy === 'createdAt') {
+      sorted.sort((a, b) => (sortOrder === 'desc'
+        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
+    } else if (sortBy === 'score') {
+      sorted.sort((a, b) => (sortOrder === 'desc'
+        ? ((b.likes || 0) - (b.dislikes || 0)) - ((a.likes || 0) - (a.dislikes || 0))
+        : ((a.likes || 0) - (a.dislikes || 0)) - ((b.likes || 0) - (b.dislikes || 0))))
+    }
+    return sorted
+  }
+
+  // 공지사항 관리 탭 진입 시 전체 posts fetch
+  useEffect(() => {
+    if (activeMenu === 'notice') {
+      fetchAllPosts()
+    }
+  }, [activeMenu])
+
+  const fetchAllPosts = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/posts?admin=1&all=1')
+      const data = await res.json()
+      setPosts(data.posts || [])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     fetchCategories()
@@ -754,7 +762,7 @@ export default function AdminPage() {
 
   const handleBoardInlineEdit = async (board: Board, newName: string, newDescription: string) => {
     try {
-      await fetch(`/api/boards/${board.slug}`, {
+      const response = await fetch(`/api/boards/${board.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -763,9 +771,31 @@ export default function AdminPage() {
           categoryId: board.categoryId,
         }),
       })
-      fetchCategories()
+
+      if (!response.ok) {
+        throw new Error('Failed to update board')
+      }
+
+      const updatedBoard = await response.json()
+      await fetchCategories()
+      setInlineEditId(null)
+      setInlineForm({ name: '', description: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 })
+
+      // 현재 페이지가 해당 게시판이면, 변경된 slug로 이동
+      const pathname = window.location.pathname
+      const boardPathRegex = /\/board\/([^/]+)\/([^/]+)/
+      const match = pathname.match(boardPathRegex)
+      if (match && match[2] === board.slug) {
+        // PATCH 응답의 categoryId 사용
+        const updatedCategory = categories.find(cat => cat.id === updatedBoard.categoryId)
+        const newCategorySlug = updatedCategory ? updatedCategory.name.toLowerCase().replace(/\s+/g, '-') : ''
+        if (newCategorySlug && updatedBoard.slug) {
+          window.location.href = `/board/${newCategorySlug}/${updatedBoard.slug}`
+        }
+      }
     } catch (error) {
       console.error('Failed to update board:', error)
+      alert('게시판 수정에 실패했습니다.')
     }
   }
 
@@ -902,12 +932,133 @@ export default function AdminPage() {
     setInlineEditId(casino.id);
     setInlineForm({
       name: casino.name,
+      description: '',
       safetyLevel: casino.safetyLevel,
       link: casino.link,
       type: casino.type,
       imageUrl: casino.imageUrl,
       order: casino.order || 0
     });
+  };
+
+  const handleCategoryInlineSave = async (cat: Category, name: string, description: string) => {
+    await fetch(`/api/categories/${cat.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description }),
+    })
+    setInlineEditingCategoryId(null)
+    fetchCategories() // 수정 후 즉시 최신 데이터 반영
+  }
+
+  // pinned posts 탭 진입 시 전체 posts fetch
+  useEffect(() => {
+    if (activeMenu === 'pinned') {
+      fetchAllPosts()
+    }
+  }, [activeMenu])
+
+  const moveCasino = async (idx: number, dir: number) => {
+    if (filteredCasinos.length < 2) return;
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= filteredCasinos.length) return;
+    const current = filteredCasinos[idx];
+    const target = filteredCasinos[targetIdx];
+    setLoading(true);
+    // order swap
+    await Promise.all([
+      fetch(`/api/casinos/${current.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: target.order }),
+      }),
+      fetch(`/api/casinos/${target.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: current.order }),
+      })
+    ]);
+    fetchCasinos();
+    setLoading(false);
+  }
+
+  const handleSaveCasinoSpeed = async () => {
+    setLoading(true);
+    await fetch('/api/casinos/speed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intervalMs: casinoSlideSpeed }),
+    });
+    setCasinoSpeedSaved(true);
+    setTimeout(() => setCasinoSpeedSaved(false), 2000);
+    setLoading(false);
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPage(1)
+  }
+
+  const handleDelete = async (post: any) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('삭제 실패')
+      // posts 상태에서 해당 글을 즉시 제거
+      setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id))
+      setSelectedPost(null)
+    } catch (err) {
+      setError('삭제에 실패했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePin = async (post: any, isPinned: boolean) => {
+    setLoading(true)
+    setError('')
+    setPosts(prevPosts => prevPosts.map(p => p.id === post.id ? { ...p, isPinned } : p))
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPinned }),
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error('핀 상태 변경 실패')
+      setSelectedPost(null)
+    } catch (err) {
+      setError('핀 상태 변경에 실패했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 모든 탭 상태 초기화 함수
+  const resetAdminStates = () => {
+    setPage(1);
+    setSearchQuery('');
+    setSortBy('createdAt');
+    setSortOrder('desc');
+    setSelectedPost(null);
+    setShowNoticeForm(false);
+    setBoardId('');
+    setFilter('all');
+    setEditingNoticeId(null);
+    setSelectedNotices([]);
+    setNewCategory({ name: '', description: '' });
+    setNewBoard({ name: '', description: '', categoryId: '' });
+    setEditingCategory(null);
+    setEditingBoard(null);
+    setInlineEditingCategoryId(null);
+    setInlineEditId(null);
+    setInlineForm({ name: '', description: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 });
+    // 필요시 추가 상태도 모두 초기화
   };
 
   if (status === 'loading') return <div className="p-8">Loading...</div>
@@ -936,12 +1087,12 @@ export default function AdminPage() {
     switch (activeMenu) {
       case 'category':
         return (
-          <div>
-            <h2 className="text-xl font-bold mb-4">카테고리 관리</h2>
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Category Management</h2>
             <form onSubmit={handleCategorySubmit} className="flex gap-2 mb-4">
-              <input type="text" value={newCategory.name} onChange={e => setNewCategory({ ...newCategory, name: e.target.value })} placeholder="카테고리명" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-700" required />
-              <input type="text" value={newCategory.description} onChange={e => setNewCategory({ ...newCategory, description: e.target.value })} placeholder="설명" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-700" />
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">{editingCategory ? '수정' : '추가'}</button>
+              <input type="text" value={newCategory.name} onChange={e => setNewCategory({ ...newCategory, name: e.target.value })} placeholder="Category Name" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-900" required />
+              <input type="text" value={newCategory.description} onChange={e => setNewCategory({ ...newCategory, description: e.target.value })} placeholder="Description" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-900" />
+              <button type="submit" className="bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-800">{editingCategory ? 'Edit' : 'Add'}</button>
             </form>
             <div className="space-y-2">
               {categories.map(cat => (
@@ -950,20 +1101,17 @@ export default function AdminPage() {
                     <CategoryInlineEditForm
                       category={cat}
                       onCancel={() => setInlineEditingCategoryId(null)}
-                      onSave={(name, description) => {
-                        setInlineEditingCategoryId(null);
-                        handleCategoryEdit({ ...cat, name, description });
-                      }}
+                      onSave={(name, description) => handleCategoryInlineSave(cat, name, description)}
                     />
                   ) : (
                     <>
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-gray-900 truncate">{cat.name}</div>
-                        <div className="text-xs text-gray-900">{cat.description}</div>
+                        <div className="font-bold text-gray-900 truncate text-lg">{cat.name}</div>
+                        <div className="text-xs text-gray-900 font-bold">{cat.description}</div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => setInlineEditingCategoryId(cat.id)} className="px-3 py-1 bg-gray-200 rounded">수정</button>
-                        <button onClick={() => handleCategoryDelete(cat.id)} className="px-3 py-1 bg-red-500 text-white rounded">삭제</button>
+                        <button onClick={() => setInlineEditingCategoryId(cat.id)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Edit</button>
+                        <button onClick={() => handleCategoryDelete(cat.id)} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 font-bold">Delete</button>
                       </div>
                     </>
                   )}
@@ -974,34 +1122,47 @@ export default function AdminPage() {
         )
       case 'board':
         return (
-          <div>
-            <h2 className="text-xl font-bold mb-4">게시판 관리</h2>
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Board Management</h2>
             <form onSubmit={handleBoardSubmit} className="flex gap-2 mb-4">
-              <select value={newBoard.categoryId} onChange={e => setNewBoard({ ...newBoard, categoryId: e.target.value })} className="border p-2 rounded font-bold text-gray-900 placeholder-gray-700" required>
-                <option value="">카테고리 선택</option>
+              <select value={newBoard.categoryId} onChange={e => setNewBoard({ ...newBoard, categoryId: e.target.value })} className="border p-2 rounded font-bold text-gray-900 placeholder-gray-900" required>
+                <option value="">Select Category</option>
                 {categories.map(cat => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
-              <input type="text" value={newBoard.name} onChange={e => setNewBoard({ ...newBoard, name: e.target.value })} placeholder="게시판명" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-700" required />
-              <input type="text" value={newBoard.description} onChange={e => setNewBoard({ ...newBoard, description: e.target.value })} placeholder="설명" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-700" />
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">{editingBoard ? '수정' : '추가'}</button>
+              <input type="text" value={newBoard.name} onChange={e => setNewBoard({ ...newBoard, name: e.target.value })} placeholder="Board Name" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-900" required />
+              <input type="text" value={newBoard.description} onChange={e => setNewBoard({ ...newBoard, description: e.target.value })} placeholder="Description" className="border p-2 rounded flex-1 font-bold text-gray-900 placeholder-gray-900" />
+              <button type="submit" className="bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-800">{editingBoard ? 'Edit' : 'Add'}</button>
             </form>
             <div className="space-y-2">
               {categories.map(cat => (
                 <div key={cat.id} className="mb-2">
-                  <div className="font-bold text-gray-900 mb-1">{cat.name}</div>
+                  <div className="font-bold text-gray-900 mb-1 text-lg">{cat.name}</div>
                   <div className="space-y-1">
                     {cat.boards.map(board => (
                       <div key={board.id} className="p-2 border rounded bg-white flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{board.name}</div>
-                          <div className="text-xs text-gray-900">{board.description}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleBoardEdit(board)} className="px-3 py-1 bg-gray-200 rounded">수정</button>
-                          <button onClick={() => handleBoardDelete(board.id, board.slug)} className="px-3 py-1 bg-red-500 text-white rounded">삭제</button>
-                        </div>
+                        {inlineEditId === board.id ? (
+                          <BoardInlineEditForm
+                            board={board}
+                            onCancel={() => setInlineEditId(null)}
+                            onSave={async (name, description) => {
+                              await handleBoardInlineEdit(board, name, description)
+                              setInlineEditId(null)
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-gray-900 truncate">{board.name}</div>
+                              <div className="text-xs text-gray-900 font-bold">{board.description}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => setInlineEditId(board.id)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Edit</button>
+                              <button onClick={() => handleBoardDelete(board.id, board.slug)} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 font-bold">Delete</button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1012,14 +1173,15 @@ export default function AdminPage() {
         )
       case 'banner':
         return (
-          <div>
-            <h2 className="text-xl font-bold mb-4">배너 관리</h2>
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Main Banner Management</h2>
             <BannerManager />
           </div>
         )
       case 'casino':
         return (
-          <div className="max-w-2xl mx-auto p-4 bg-white rounded shadow">
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Casino Banner Management</h2>
             <div className="mb-4 text-sm text-gray-900 font-semibold">
               <div>• Casino Banners are displayed in order of <span className="text-blue-700 font-bold">Order</span> (ascending).</div>
               <div>• You can set the <span className="text-blue-700 font-bold">slide speed</span> (ms) for the casino banner below. (Default: 4000ms)</div>
@@ -1122,149 +1284,303 @@ export default function AdminPage() {
             </div>
           </div>
         )
+      case 'pinned':
+        return (
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Pinned Posts Management</h2>
+            <div className="mb-4">
+              <label className="block mb-1 font-bold text-gray-900">Select Board</label>
+              <select
+                value={boardId}
+                onChange={e => { setBoardId(e.target.value); setSelectedPost(null); setPage(1); }}
+                className="border-2 border-blue-600 p-2 rounded w-full font-bold text-gray-900 placeholder-gray-900 text-lg"
+                style={{ minWidth: '400px', width: '100%' }}
+              >
+                <option value="">Select a board</option>
+                {categories.flatMap(cat =>
+                  cat.boards.map(board => {
+                    const pinnedCount = posts.filter((p: Post) => p.boardId === board.id && p.isPinned).length
+                    return (
+                      <option key={board.id} value={board.id}>
+                        [{cat.name}] {board.name} [{pinnedCount}]
+                      </option>
+                    )
+                  })
+                )}
+              </select>
+            </div>
+
+            {boardId && (
+              <>
+                <div className="mb-4 flex gap-4 items-center">
+                  <form onSubmit={handleSearch} className="flex-1">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search by title..."
+                      className="border p-2 rounded w-full font-bold text-gray-900 placeholder-gray-900"
+                    />
+                  </form>
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSortBy('createdAt');
+                      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                    }}
+                    className={`px-3 py-1 rounded font-bold ${sortBy === 'createdAt' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}
+                  >
+                    {sortBy === 'createdAt' && sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSortBy('score');
+                      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                    }}
+                    className={`px-3 py-1 rounded font-bold ${sortBy === 'score' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}
+                  >
+                    {sortBy === 'score' && sortOrder === 'desc' ? 'Highest Score' : 'Lowest Score'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {loading && <div className="text-blue-700 font-bold">Loading...</div>}
+            {error && <div className="text-red-700 font-bold">{error}</div>}
+            
+            {!selectedPost ? (
+              <div className="space-y-2">
+                {posts.length === 0 && boardId && <div className="text-gray-900 font-bold">No posts found.</div>}
+                {posts
+                  .filter((post: Post) => !post.isNotice && String(post.boardId) === String(boardId))
+                  .sort((a: Post, b: Post) => {
+                    if (sortBy === 'createdAt') {
+                      return sortOrder === 'desc'
+                        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                    } else if (sortBy === 'score') {
+                      const scoreA = (a.likes || 0) - (a.dislikes || 0)
+                      const scoreB = (b.likes || 0) - (b.dislikes || 0)
+                      return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+                    }
+                    return 0
+                  })
+                  .map((post: Post) => (
+                    <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-900 truncate">
+                          {post.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
+                          {post.isPinned && <span className="text-blue-600 mr-2">[Pinned]</span>}
+                          {post.title}
+                        </div>
+                        <div className="text-gray-900 font-bold">Author: {post.user?.name || 'Anonymous'}</div>
+                        <div className="text-gray-900 font-bold">Date: {new Date(post.createdAt).toLocaleDateString()}</div>
+                        <div className="text-gray-900 font-bold">
+                          Score: {Number(post.likes) - Number(post.dislikes)}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setSelectedPost(post)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Detail</button>
+                        <button 
+                          onClick={() => handlePin(post, !post.isPinned)} 
+                          className={`px-3 py-1 rounded font-bold ${post.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}
+                        >
+                          {post.isPinned ? 'Unpin' : 'Pin'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                {totalPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-4">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1 text-gray-900 font-bold">
+                      {page} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 border rounded bg-white">
+                <h3 className="text-lg font-bold mb-2 text-gray-900">
+                  {selectedPost.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
+                  {selectedPost.isPinned && <span className="text-blue-600 mr-2">[Pinned]</span>}
+                  {selectedPost.title}
+                </h3>
+                <div className="mb-2 text-gray-900 whitespace-pre-line font-bold">{selectedPost.content}</div>
+                <div className="mb-2 text-gray-900 font-bold">Author: {selectedPost.user?.name || 'Anonymous'}</div>
+                <div className="text-gray-900 font-bold">Date: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded font-bold ${selectedPost.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
+                  <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">Delete</button>
+                  <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-900 font-bold">Back to List</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       case 'notice':
         return (
-          <div>
-            <h2 className="text-2xl text-gray-900 mb-4">공지사항 관리</h2>
-            <div className="flex gap-4 items-center mb-4">
-              <input type="checkbox" checked={selectedNotices.length === notices.length && notices.length > 0} onChange={() => {
-                if (selectedNotices.length === notices.length) {
-                  setSelectedNotices([]);
-                } else {
-                  setSelectedNotices([...notices]);
-                }
-              }} />
-              <button onClick={async () => {
-                if (selectedNotices.length === 0) {
-                  alert('삭제할 공지사항을 선택하세요');
-                  return;
-                }
-                if (!confirm('정말 삭제하시겠습니까?')) return;
-                for (const notice of selectedNotices) {
-                  if (!notice.board || typeof notice.board.id !== 'number') {
-                    alert('게시판 정보를 찾을 수 없습니다.');
-                    continue;
-                  }
-                  const category = categories.find(cat => cat.boards.some(b => b.id === notice.board!.id));
-                  const board = category?.boards.find(b => b.id === notice.board!.id);
-                  if (!category || !board) {
-                    alert('게시판 정보를 찾을 수 없습니다.');
-                    continue;
-                  }
-                  const categorySlug = category.name.toLowerCase().replace(/\s+/g, '-');
-                  const res = await fetch(`/api/board/${categorySlug}/${board.slug}/${notice.postKey}`, { 
-                    method: 'DELETE',
-                    credentials: 'include'
-                  });
-                  if (!res.ok) {
-                    const err = await res.json();
-                    alert(`삭제 실패: ${err.error || '알 수 없는 오류'}`);
-                    return;
-                  }
-                }
-                setSelectedNotices([]);
-                const res = await fetch('/api/posts?isNotice=1&includeBoard=1', { cache: 'no-store' });
-                const data = await res.json();
-                setNotices((data.posts || []).filter((p: any) => p.isNotice));
-                setTimeout(() => {
-                  alert('삭제되었습니다');
-                }, 0);
-              }} className="bg-red-600 text-white px-4 py-2 rounded">삭제</button>
-              <button onClick={() => setShowNoticeForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded">글쓰기</button>
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Notice Management</h2>
+            <div className="mb-4">
+              <label className="block mb-1 font-bold text-gray-900">Select Board</label>
+              <select
+                value={boardId}
+                onChange={e => { setBoardId(e.target.value); setSelectedPost(null); setPage(1); }}
+                className="border-2 border-blue-600 p-2 rounded w-full font-bold text-gray-900 placeholder-gray-900 text-lg"
+                style={{ minWidth: '400px', width: '100%' }}
+              >
+                <option value="">Select a board</option>
+                {categories.flatMap(cat =>
+                  cat.boards.map(board => {
+                    const noticeCount = posts.filter((p: Post) => p.boardId === board.id && p.isNotice).length
+                    return (
+                      <option key={board.id} value={board.id}>
+                        [{cat.name}] {board.name} [{noticeCount}]
+                      </option>
+                    )
+                  })
+                )}
+              </select>
             </div>
-            <table className="w-full border rounded bg-white">
-              <thead>
-                <tr className="bg-gray-100 text-gray-900 text-sm">
-                  <th className="p-2"><input type="checkbox" checked={selectedNotices.length === notices.length && notices.length > 0} onChange={() => {
-                    if (selectedNotices.length === notices.length) {
-                      setSelectedNotices([]);
-                    } else {
-                      setSelectedNotices([...notices]);
+
+            {boardId && (
+              <>
+                <div className="mb-4 flex gap-4 items-center">
+                  <form onSubmit={handleSearch} className="flex-1">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search by title..."
+                      className="border p-2 rounded w-full font-bold text-gray-900 placeholder-gray-900"
+                    />
+                  </form>
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSortBy('createdAt');
+                      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                    }}
+                    className={`px-3 py-1 rounded font-bold ${sortBy === 'createdAt' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'}`}
+                  >
+                    {sortBy === 'createdAt' && sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {loading && <div className="text-blue-700 font-bold">Loading...</div>}
+            {error && <div className="text-red-700 font-bold">{error}</div>}
+            
+            {!selectedPost ? (
+              <div className="space-y-2">
+                {posts.length === 0 && boardId && <div className="text-gray-900 font-bold">No posts found.</div>}
+                {posts
+                  .filter((post: Post) => post.isNotice && String(post.boardId) === String(boardId))
+                  .sort((a: Post, b: Post) => {
+                    if (sortBy === 'createdAt') {
+                      return sortOrder === 'desc'
+                        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                    } else if (sortBy === 'score') {
+                      const scoreA = (a.likes || 0) - (a.dislikes || 0)
+                      const scoreB = (b.likes || 0) - (b.dislikes || 0)
+                      return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
                     }
-                  }} /></th>
-                  <th className="p-2 text-gray-900">Edit</th>
-                  <th className="p-2 text-gray-900">번호</th>
-                  <th className="p-2 text-gray-900">이미지</th>
-                  <th className="p-2 text-gray-900">게시판명</th>
-                  <th className="p-2 text-gray-900">제목</th>
-                  <th className="p-2 text-gray-900">등록일</th>
-                </tr>
-              </thead>
-              <tbody>
-                {notices
-                  .slice()
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .map((notice, idx) => (
-                    <React.Fragment key={notice.id}>
-                      <tr className="border-b">
-                        <td className="p-2 text-center">
-                          <input type="checkbox" checked={selectedNotices.some(n => n.id === notice.id)} onChange={() => {
-                            if (selectedNotices.some(n => n.id === notice.id)) {
-                              setSelectedNotices(selectedNotices.filter(n => n.id !== notice.id));
-                            } else {
-                              setSelectedNotices([...selectedNotices, notice]);
-                            }
-                          }} />
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => setEditingNoticeId(notice.id)}
-                            className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                        <td className="p-2 text-center text-gray-900">{notices.length - idx}</td>
-                        <td className="p-2 text-center text-gray-900">{
-                          typeof window !== 'undefined' && notice.imageUrl && (
-                            <img src={notice.imageUrl} alt="첨부 이미지" className="w-12 h-8 object-cover rounded border mx-auto" />
-                          )
-                        }</td>
-                        <td className="p-2 text-center text-gray-900">{notice.board?.name || '-'}</td>
-                        <td className="p-2 text-gray-900">{notice.title}</td>
-                        <td className="p-2 text-center text-gray-900">{new Date(notice.createdAt).toLocaleDateString()}</td>
-                      </tr>
-                      {editingNoticeId === notice.id && (
-                        <tr>
-                          <td colSpan={7} className="bg-gray-50">
-                            <NoticeForm
-                              categories={categories}
-                              initialData={notice}
-                              onCancel={() => setEditingNoticeId(null)}
-                              onSave={async () => {
-                                setEditingNoticeId(null);
-                                const res = await fetch('/api/posts?isNotice=1&includeBoard=1', { cache: 'no-store' });
-                                const data = await res.json();
-                                setNotices((data.posts || []).filter((p: any) => p.isNotice));
-                                alert('등록되었습니다');
-                                setShowNoticeForm(false);
-                              }}
-                            />
-                            {// 기존 이미지 미리보기 항상 노출
-                            notice.imageUrl && (
-                              <div className="mt-4 flex items-center gap-2">
-                                <span className="text-gray-900">기존 이미지:</span>
-                                <img src={notice.imageUrl} alt="첨부 이미지" className="w-32 h-20 object-cover rounded border" />
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                    return 0
+                  })
+                  .map((post: Post) => (
+                    <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-900 truncate">
+                          {post.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
+                          {post.title}
+                        </div>
+                        <div className="text-gray-900 font-bold">Author: {post.user?.name || 'Anonymous'}</div>
+                        <div className="text-gray-900 font-bold">Date: {new Date(post.createdAt).toLocaleDateString()}</div>
+                        <div className="text-gray-900 font-bold">
+                          Score: {Number(post.likes) - Number(post.dislikes)}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setSelectedPost(post)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Detail</button>
+                        <button onClick={() => handleDelete(post)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">Delete</button>
+                      </div>
+                    </div>
                   ))}
-              </tbody>
-            </table>
+
+                {totalPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-4">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                    >
+                      Prev
+                    </button>
+                    <span className="px-3 py-1 text-gray-900 font-bold">
+                      {page} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <button onClick={() => setShowNoticeForm(true)} className="bg-blue-700 text-white px-4 py-2 rounded font-bold hover:bg-blue-800">Add Notice</button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 border rounded bg-white">
+                <h3 className="text-lg font-bold mb-2 text-gray-900">
+                  {selectedPost.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
+                  {selectedPost.title}
+                </h3>
+                <div className="mb-2 text-gray-900 whitespace-pre-line font-bold">{selectedPost.content}</div>
+                <div className="mb-2 text-gray-900 font-bold">Author: {selectedPost.user?.name || 'Anonymous'}</div>
+                <div className="text-gray-900 font-bold">Date: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">Delete</button>
+                  <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-900 font-bold">Back to List</button>
+                </div>
+              </div>
+            )}
+
             {showNoticeForm && (
               <div className="mt-4 p-4 border rounded bg-white">
-                <h3 className="text-lg font-bold mb-2">공지사항 등록</h3>
+                <h3 className="text-lg font-bold mb-2 text-gray-900">Add Notice</h3>
                 <NoticeForm
                   categories={categories}
                   onCancel={() => setShowNoticeForm(false)}
                   onSave={async () => {
                     const res = await fetch('/api/posts?isNotice=1&includeBoard=1', { cache: 'no-store' });
                     const data = await res.json();
-                    setNotices((data.posts || []).filter((p: any) => p.isNotice));
-                    alert('등록되었습니다');
+                    setPosts((data.posts || []).filter((p: any) => p.isNotice));
+                    alert('Notice added');
                     setShowNoticeForm(false);
                   }}
                 />
@@ -1272,46 +1588,17 @@ export default function AdminPage() {
             )}
           </div>
         )
+      case 'users':
+        return (
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">User Management</h2>
+            <UserManager />
+          </div>
+        )
       default:
         return <div className="text-gray-900">Coming soon...</div>
     }
   }
-
-  const moveCasino = async (idx: number, dir: number) => {
-    if (filteredCasinos.length < 2) return;
-    const targetIdx = idx + dir;
-    if (targetIdx < 0 || targetIdx >= filteredCasinos.length) return;
-    const current = filteredCasinos[idx];
-    const target = filteredCasinos[targetIdx];
-    setLoading(true);
-    // order swap
-    await Promise.all([
-      fetch(`/api/casinos/${current.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: target.order }),
-      }),
-      fetch(`/api/casinos/${target.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: current.order }),
-      })
-    ]);
-    fetchCasinos();
-    setLoading(false);
-  }
-
-  const handleSaveCasinoSpeed = async () => {
-    setLoading(true);
-    await fetch('/api/casinos/speed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ intervalMs: casinoSlideSpeed }),
-    });
-    setCasinoSpeedSaved(true);
-    setTimeout(() => setCasinoSpeedSaved(false), 2000);
-    setLoading(false);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1323,43 +1610,43 @@ export default function AdminPage() {
             </div>
             <nav className="p-2">
               <button
-                onClick={() => setActiveMenu('notice')}
+                onClick={() => { resetAdminStates(); setActiveMenu('notice'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'notice' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Notice
               </button>
               <button
-                onClick={() => setActiveMenu('posts')}
-                className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'posts' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
+                onClick={() => { resetAdminStates(); setActiveMenu('pinned'); }}
+                className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'pinned' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
-                Posts
+                Pinned Posts
               </button>
               <button
-                onClick={() => setActiveMenu('users')}
+                onClick={() => { resetAdminStates(); setActiveMenu('users'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'users' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Users
               </button>
               <button
-                onClick={() => setActiveMenu('category')}
+                onClick={() => { resetAdminStates(); setActiveMenu('category'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'category' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Category
               </button>
               <button
-                onClick={() => setActiveMenu('board')}
+                onClick={() => { resetAdminStates(); setActiveMenu('board'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'board' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Board
               </button>
               <button
-                onClick={() => setActiveMenu('banner')}
+                onClick={() => { resetAdminStates(); setActiveMenu('banner'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'banner' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Main Banner
               </button>
               <button
-                onClick={() => setActiveMenu('casino')}
+                onClick={() => { resetAdminStates(); setActiveMenu('casino'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'casino' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Casino Banner

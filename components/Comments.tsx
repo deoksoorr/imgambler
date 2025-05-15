@@ -50,12 +50,12 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
   const fetchComments = useCallback(async () => {
     try {
       const response = await fetch(`/api/posts/${postId}/comments`)
-      if (!response.ok) throw new Error('댓글을 불러오는데 실패했습니다.')
+      if (!response.ok) throw new Error('Failed to load comments.')
       const data = await response.json()
       setComments(data)
       setError(null)
     } catch (error) {
-      setError((error as Error).message || '댓글을 불러오는데 오류가 발생했습니다.')
+      setError((error as Error).message || 'An error occurred while loading comments.')
       console.error('Error loading comments:', error)
     }
   }, [postId])
@@ -82,14 +82,14 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
         body: JSON.stringify({ content: newComment }),
       })
 
-      if (!response.ok) throw new Error('댓글 작성에 실패했습니다.')
+      if (!response.ok) throw new Error('Failed to post comment.')
 
       const comment = await response.json()
       setComments([comment, ...comments])
       setNewComment('')
       setError(null)
     } catch (error) {
-      setError((error as Error).message || '댓글 작성 중 오류가 발생했습니다.')
+      setError((error as Error).message || 'An error occurred while posting the comment.')
       console.error('Error creating comment:', error)
     } finally {
       setIsLoading(false)
@@ -107,7 +107,7 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
         body: JSON.stringify({ content: editContent }),
       })
 
-      if (!response.ok) throw new Error('댓글 수정에 실패했습니다.')
+      if (!response.ok) throw new Error('Failed to edit comment.')
 
       const updatedComment = await response.json()
       setComments(comments.map(comment => 
@@ -117,7 +117,7 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
       setEditContent('')
       setError(null)
     } catch (error) {
-      setError((error as Error).message || '댓글 수정 중 오류가 발생했습니다.')
+      setError((error as Error).message || 'An error occurred while editing the comment.')
       console.error('Error updating comment:', error)
     } finally {
       setIsLoading(false)
@@ -133,7 +133,7 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
         method: 'DELETE',
       })
 
-      if (!response.ok) throw new Error('댓글 삭제에 실패했습니다.')
+      if (!response.ok) throw new Error('Failed to delete comment.')
 
       setComments(comments.map(comment =>
         comment.id === commentId
@@ -142,7 +142,7 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
       ))
       setError(null)
     } catch (error) {
-      setError((error as Error).message || '댓글 삭제 중 오류가 발생했습니다.')
+      setError((error as Error).message || 'An error occurred while deleting the comment.')
       console.error('Error deleting comment:', error)
     } finally {
       setIsLoading(false)
@@ -169,13 +169,13 @@ export default function Comments({ postId, likes, dislikes, isNotice, commentsCo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!response.ok) throw new Error('답글 작성에 실패했습니다.')
+      if (!response.ok) throw new Error('Failed to post reply.')
       setReplyContent('')
       setReplyingTo(null)
       fetchComments()
       setError(null)
     } catch (error) {
-      setError((error as Error).message || '답글 작성 중 오류가 발생했습니다.')
+      setError((error as Error).message || 'An error occurred while posting the reply.')
       console.error('Error creating reply:', error)
     } finally {
       setIsLoading(false)
@@ -422,7 +422,7 @@ function CommentItem({
               disabled={isLoading}
               className="px-4 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-bold shadow"
             >
-              답글 작성
+              Post Reply
             </button>
             <button
               type="button"
@@ -430,7 +430,7 @@ function CommentItem({
               disabled={isLoading}
               className="px-4 py-1 bg-gray-400 text-white rounded-lg hover:bg-gray-500 disabled:opacity-50 font-bold shadow"
             >
-              취소
+              Cancel
             </button>
           </div>
         </div>

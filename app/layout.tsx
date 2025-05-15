@@ -24,12 +24,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ko" className={inter.variable}>
       <body className="bg-white font-sans" style={{ background: '#fff' }}>
         <SessionWrapper>
-          {/* 코인 시세표를 최상단에 위치 */}
-          {/* <CryptoMarquee /> */}
-          {/* Realtime 섹션 숨김 */}
-          {/* <div className="w-full bg-gray-900 text-white flex items-center justify-center h-10 px-4">
-            <UtcClock />
-          </div> */}
           <div className="w-full flex justify-end items-center px-4 py-4">
             <AuthButtons />
           </div>

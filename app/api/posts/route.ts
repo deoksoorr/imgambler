@@ -37,7 +37,18 @@ export async function GET(request: Request) {
           { isNotice: 'desc' },
           { createdAt: 'desc' }
         ],
-        include: {
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          postKey: true,
+          isNotice: true,
+          isPinned: true,
+          createdAt: true,
+          boardId: true,
+          likes: true,
+          dislikes: true,
+          imageUrl: true,
           user: { select: { name: true, image: true, email: true } },
           board: true,
           _count: {
