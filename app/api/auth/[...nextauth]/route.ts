@@ -44,6 +44,7 @@ const handler = NextAuth({
         token.name = user.name
         token.email = user.email
         token.image = user.image
+        token.isAdmin = (user as any).isAdmin;
       }
       // isAdmin 판별용 dbUser는 별도
       let dbUser = null
@@ -52,7 +53,7 @@ const handler = NextAuth({
       } else if (token.sub) {
         dbUser = await prisma.user.findUnique({ where: { id: token.sub } })
       }
-      token.isAdmin = dbUser?.isAdmin === true
+      token.isAdmin = dbUser?.isAdmin === true;
       console.log('JWT 콜백 후 token:', token)
       return token
     },
@@ -72,7 +73,7 @@ const handler = NextAuth({
         name: t?.name ?? undefined,
         email: t?.email ?? undefined,
         image: t?.image ?? undefined,
-        isAdmin: t?.isAdmin === true,
+        isAdmin: true,
       }
       return session
     },

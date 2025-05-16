@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
+    "@heroicons/react": "^2.2.0",
     "@prisma/client": "^5.10.2",
     "@types/node": "^20.11.24",
     "@types/react": "^18.2.61",
@@ -45,6 +46,7 @@
     "prisma": "^5.10.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
     "scheduler": "^0.26.0",
     "semver": "^7.7.1",

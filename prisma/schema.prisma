@@ -161,13 +161,97 @@ model BannerConfig {
   value String
 }
 
+model OnlineCasino {
+  id               Int                @id @default(autoincrement())
+  name             String
+  logoUrl          String?
+  establishedYear  Int?
+  operator         String?
+  license          String?
+  isMobileSupported Boolean @default(false)
+  avgRating        Float?
+  withdrawalSpeed  String?
+  minDeposit       Int?
+  minWithdrawal    Int?
+  withdrawalLimit  Int?
+  visitUrl         String?
+  reviewUrl        String?
+  description      String?
+  review           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  providers        OnlineCasinoProvider[]
+  gameTypes        OnlineCasinoGameType[]
+  languages        OnlineCasinoLanguage[]
+  supportLanguages OnlineCasinoSupportLanguage[]
+  pros             OnlineCasinoPro[]
+  cons             OnlineCasinoCon[]
+  paymentMethods   OnlineCasinoPaymentMethod[]
+  screenshots      OnlineCasinoScreenshot[]
+}
+
+model OnlineCasinoProvider {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  casinos OnlineCasino[]
+}
+
+model OnlineCasinoGameType {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  icon String?
+  casinos OnlineCasino[]
+}
+
+model OnlineCasinoLanguage {
+  id       Int    @id @default(autoincrement())
+  value    String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
+model OnlineCasinoSupportLanguage {
+  id       Int    @id @default(autoincrement())
+  value    String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
+model OnlineCasinoPro {
+  id       Int    @id @default(autoincrement())
+  value    String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
+model OnlineCasinoCon {
+  id       Int    @id @default(autoincrement())
+  value    String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
+model OnlineCasinoPaymentMethod {
+  id       Int    @id @default(autoincrement())
+  value    String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
+model OnlineCasinoScreenshot {
+  id       Int    @id @default(autoincrement())
+  url      String
+  casino   OnlineCasino @relation(fields: [casinoId], references: [id])
+  casinoId Int
+}
+
 model Casino {
   id          Int      @id @default(autoincrement())
   name        String
   imageUrl    String
-  safetyLevel String
+  safetyLevel String   // HIGH, VERY HIGH 등
   link        String
-  type        String
+  type        String   // 'best' | 'new'
   order       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

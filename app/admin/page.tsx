@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import AuthButtons from '@/components/AuthButtons'
 import BannerManager from '@/components/BannerManager'
 import UserManager from '@/components/UserManager'
+import OnlineCasinosAdminUI from '@/components/OnlineCasinosAdminUI'
 
 interface Category {
   id: number
@@ -72,7 +73,7 @@ interface Post {
   score?: number,
 }
 
-type AdminMenu = 'notice' | 'users' | 'category' | 'board' | 'banner' | 'casino' | 'pinned'
+type AdminMenu = 'onlinecasinos' | 'notice' | 'users' | 'category' | 'board' | 'banner' | 'casino' | 'pinned'
 
 interface CategoryInlineEditFormProps {
   category: Category
@@ -581,7 +582,7 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
           <div className="mb-2 text-gray-900 font-bold">작성자: {selectedPost.user?.name || 'Anonymous'}</div>
           <div className="text-gray-900 font-bold">등록일: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
           <div className="flex gap-2 mt-4">
-            <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded ${selectedPost.isPinned ? 'bg-yellow-400 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
+            <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded ${selectedPost.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
             <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">삭제</button>
             <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">목록</button>
           </div>
@@ -611,7 +612,7 @@ export default function AdminPage() {
   const [casinoPreview, setCasinoPreview] = useState<string | null>(null)
   const [casinoSlideSpeed, setCasinoSlideSpeed] = useState(4000)
   const [casinoSpeedSaved, setCasinoSpeedSaved] = useState(false)
-  const [casinoTab, setCasinoTab] = useState('best')
+  const [casinoTab, setCasinoTab] = useState<'all' | 'best' | 'new'>('all')
   const [inlineEditId, setInlineEditId] = useState<number | null>(null)
   const [inlineForm, setInlineForm] = useState<{ name: string; description: string; safetyLevel: string; link: string; type: string; imageUrl?: string | null; order?: number }>({ name: '', description: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 })
   const [loading, setLoading] = useState(false)
@@ -928,7 +929,7 @@ export default function AdminPage() {
     fetchCasinos();
   };
 
-  const filteredCasinos = casinos.filter(casino => casino.type === casinoTab);
+  const filteredCasinos = casinoTab === 'all' ? casinos : casinos.filter(casino => casino.type === casinoTab);
 
   const handleInlineFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -1220,6 +1221,27 @@ export default function AdminPage() {
               <div>• Casino Banners are displayed in order of <span className="text-blue-700 font-bold">Order</span> (ascending).</div>
               <div>• You can set the <span className="text-blue-700 font-bold">slide speed</span> (ms) for the casino banner below. (Default: 4000ms)</div>
               <div className="mt-1 text-xs text-gray-900">Recommended image size: <span className="font-bold">270x80px</span> (JPG/PNG, max 2MB)</div>
+            </div>
+            {/* Casino Type Filter Tabs */}
+            <div className="flex gap-2 mb-4">
+              <button
+                className={`px-4 py-2 rounded font-bold border ${casinoTab === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50'}`}
+                onClick={() => setCasinoTab('all')}
+              >
+                All
+              </button>
+              <button
+                className={`px-4 py-2 rounded font-bold border ${casinoTab === 'best' ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50'}`}
+                onClick={() => setCasinoTab('best')}
+              >
+                Best
+              </button>
+              <button
+                className={`px-4 py-2 rounded font-bold border ${casinoTab === 'new' ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50'}`}
+                onClick={() => setCasinoTab('new')}
+              >
+                New
+              </button>
             </div>
             <div className="mb-6 flex items-center gap-4">
               <label className="font-bold text-gray-900">Slide Speed (ms):
@@ -1633,6 +1655,17 @@ export default function AdminPage() {
             <UserManager />
           </div>
         )
+      case 'onlinecasinos':
+        return (
+          <div className="p-8 bg-white rounded shadow">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Online Casinos Management</h2>
+            <div className="mb-4 text-sm text-gray-900 font-semibold">
+              <div>• Manage all Online Casinos here. You can add, edit, or delete casinos.</div>
+              <div className="mt-1 text-xs text-gray-900">All information is managed in real time.</div>
+            </div>
+            <OnlineCasinosAdminUI />
+          </div>
+        )
       default:
         return <div className="text-gray-900">Coming soon...</div>
     }
@@ -1647,6 +1680,12 @@ export default function AdminPage() {
               <h2 className="text-lg font-bold text-gray-900">Admin Menu</h2>
             </div>
             <nav className="p-2">
+              <button
+                onClick={() => { resetAdminStates(); setActiveMenu('onlinecasinos'); }}
+                className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'onlinecasinos' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
+              >
+                Online Casinos
+              </button>
               <button
                 onClick={() => { resetAdminStates(); setActiveMenu('notice'); }}
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'notice' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
@@ -1688,6 +1727,13 @@ export default function AdminPage() {
                 className={`w-full text-left px-4 py-3 rounded-lg mb-1 ${activeMenu === 'casino' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-900 hover:bg-gray-50'}`}
               >
                 Casino Banner
+              </button>
+              {/* Online Casinos 관리 메뉴 */}
+              <button
+                onClick={() => window.location.href = '/admin/online-casinos'}
+                className="w-full text-left px-4 py-3 rounded-lg mb-1 bg-blue-600 text-white font-bold shadow hover:bg-blue-700 transition-colors border border-blue-700"
+              >
+                Online Casinos 관리
               </button>
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
