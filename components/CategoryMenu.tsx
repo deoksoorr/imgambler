@@ -6,17 +6,25 @@ export default function CategoryMenu() {
   const [categories, setCategories] = useState<any[]>([])
   const [openId, setOpenId] = useState<number | null>(null)
 
+  // fetchCategories 함수 분리
+  const fetchCategories = async () => {
+    const res = await fetch('/api/categories')
+    if (!res.ok) return setCategories([])
+    let data = []
+    try {
+      data = await res.json()
+    } catch {
+      data = []
+    }
+    setCategories(Array.isArray(data) ? data : [])
+  }
+
   useEffect(() => {
-    fetch('/api/categories')
-      .then(async res => {
-        if (!res.ok) return []
-        try {
-          return await res.json()
-        } catch {
-          return []
-        }
-      })
-      .then(data => setCategories(Array.isArray(data) ? data : []))
+    fetchCategories()
+    // 커스텀 이벤트 리스너 등록
+    const handler = () => fetchCategories()
+    window.addEventListener('refreshCategoryMenu', handler)
+    return () => window.removeEventListener('refreshCategoryMenu', handler)
   }, [])
 
   return (

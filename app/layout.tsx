@@ -8,6 +8,7 @@ import CategoryMenu from '@/components/CategoryMenu'
 import AuthButtons from '@/components/AuthButtons'
 import Link from 'next/link'
 import Footer from '@/components/Footer'
+import BoardMenu from '@/components/BoardMenu'
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,17 +25,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ko" className={inter.variable}>
       <body className="bg-white font-sans" style={{ background: '#fff' }}>
         <SessionWrapper>
-          <div className="w-full flex justify-end items-center px-4 py-4">
-            <AuthButtons />
+          <div className="w-full flex flex-col px-8">
+            <div className="flex items-center justify-end py-2">
+              <AuthButtons />
+            </div>
+            <div className="flex items-center gap-6 py-2">
+              <Link href="/">
+                <img src="/logo.png" alt="I'M GAMBLER" className="h-10 object-contain align-middle" style={{ height: 40 }} />
+              </Link>
+              <BoardMenu />
+            </div>
           </div>
-          <div className="w-full flex justify-center items-center py-4">
-            <Link href="/">
-              <span className="text-2xl font-extrabold tracking-wide text-gray-900 cursor-pointer">I'M GAMBLER</span>
-            </Link>
-          </div>
-          <div className="w-full h-4" />
-          <CategoryMenu />
-          {children}
+          <div className="w-full border-b border-gray-200 mt-8" />
+          <main className="bg-white min-h-screen">
+            {/* <CategoryMenu /> */}
+            {children}
+          </main>
           <Footer />
         </SessionWrapper>
       </body>

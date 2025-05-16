@@ -168,7 +168,8 @@ export default function Home() {
       console.log('알림 메시지:', message)
       alert(message);
       console.log('페이지 새로고침 시도')
-      window.location.reload();
+      window.dispatchEvent(new Event('refreshBoardMenu'));
+      window.dispatchEvent(new Event('refreshCategoryMenu'));
     };
 
     // 이벤트 리스너
@@ -192,7 +193,7 @@ export default function Home() {
   if (bannersError || categoriesError || postsError) return <div className="w-screen h-96 flex items-center justify-center text-red-400">데이터 로딩 실패</div>
 
   return (
-    <main className="min-h-screen bg-gray-100 overflow-x-hidden">
+    <main className="min-h-screen bg-white overflow-x-hidden">
       {/* 슬라이드 배너: 코인 슬라이드와 완전히 동일하게 */}
       <div className="relative w-screen h-[340px] sm:h-[400px] md:h-[480px] lg:h-[540px] overflow-hidden shadow-lg bg-white p-0 mt-0 left-1/2 -translate-x-1/2">
         {banners.map((banner, idx) => (
@@ -230,24 +231,23 @@ export default function Home() {
             </div>
           </div>
         ))}
-      </div>
-      {/* 인디케이터도 w-screen로 확장 */}
-      <div className="w-screen flex justify-center items-center mt-2 mb-4 left-1/2 -translate-x-1/2 relative">
-        <div className="flex gap-3 z-20">
-          {banners.map((_, idx) => (
-            <div key={idx} className="relative flex items-center" style={{height: '12px'}}>
-              <button
-                className={`transition-all duration-300 rounded-full border-2 focus:outline-none
-                  ${idx === current ? 'w-12 h-3 bg-blue-600 border-blue-600' : 'w-3 h-3 bg-white border-gray-300'}`}
-                onClick={() => setCurrent(idx)}
-                aria-label={`Go to slide ${idx + 1}`}
-                style={{position: 'relative', zIndex: 1}}
-              />
-              {idx === current && (
-                <div className="absolute left-0 top-0 h-full rounded-full bg-blue-300/60" style={{width: `${progress * 100}%`, transition: 'width 0.1s linear', zIndex: 0}} />
-              )}
+        {/* 슬라이드 인디케이터: 우측 하단에 고정, 좌측과 동일한 px-8 여백 맞춤 */}
+        <div className="absolute bottom-8 left-0 w-full flex justify-end z-30 pointer-events-none">
+          <div className="max-w-6xl w-full flex justify-end pr-8 mx-auto pointer-events-auto">
+            <div className="bg-black/40 rounded-full px-5 py-2 flex gap-4 items-center shadow-lg">
+              {banners.map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`transition-all duration-300 rounded-full border-2 focus:outline-none
+                    ${idx === current ? 'w-12 h-4 bg-blue-600 border-blue-400 shadow-lg' : 'w-4 h-4 bg-white/80 border-gray-300'}
+                  `}
+                  onClick={() => setCurrent(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  style={{position: 'relative', zIndex: 1}}
+                />
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
 

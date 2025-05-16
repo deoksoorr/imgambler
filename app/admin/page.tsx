@@ -507,16 +507,20 @@ function PostAdminManager({ categories }: PostAdminManagerProps) {
           {posts
             .filter((post: Post) => !post.isNotice && String(post.boardId) === String(boardId))
             .sort((a: Post, b: Post) => {
-              if (sortBy === 'createdAt') {
-                return sortOrder === 'desc'
-                  ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                  : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-              } else if (sortBy === 'score') {
-                const scoreA = (a.likes || 0) - (a.dislikes || 0)
-                const scoreB = (b.likes || 0) - (b.dislikes || 0)
-                return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+              if (a.isPinned === b.isPinned) {
+                // 기존 정렬(날짜, 점수 등) 유지
+                if (sortBy === 'createdAt') {
+                  return sortOrder === 'desc'
+                    ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                } else if (sortBy === 'score') {
+                  const scoreA = (a.likes || 0) - (a.dislikes || 0)
+                  const scoreB = (b.likes || 0) - (b.dislikes || 0)
+                  return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+                }
+                return 0
               }
-              return 0
+              return a.isPinned ? -1 : 1 // 핀된 글이 먼저
             })
             .map((post: Post) => (
               <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
@@ -717,7 +721,9 @@ export default function AdminPage() {
       })
     }
     setNewCategory({ name: '', description: '' })
-    fetchCategories()
+    await fetchCategories()
+    window.dispatchEvent(new Event('refreshBoardMenu'));
+    window.dispatchEvent(new Event('refreshCategoryMenu'));
   }
 
   const handleBoardSubmit = async (e: React.FormEvent) => {
@@ -743,7 +749,9 @@ export default function AdminPage() {
       })
     }
     setNewBoard({ name: '', description: '', categoryId: '' })
-    fetchCategories()
+    await fetchCategories()
+    window.dispatchEvent(new Event('refreshBoardMenu'));
+    window.dispatchEvent(new Event('refreshCategoryMenu'));
   }
 
   const handleCategoryEdit = (category: Category) => {
@@ -778,6 +786,8 @@ export default function AdminPage() {
 
       const updatedBoard = await response.json()
       await fetchCategories()
+      window.dispatchEvent(new Event('refreshBoardMenu'));
+      window.dispatchEvent(new Event('refreshCategoryMenu'));
       setInlineEditId(null)
       setInlineForm({ name: '', description: '', safetyLevel: '', link: '', type: 'best', imageUrl: '', order: 0 })
 
@@ -801,15 +811,37 @@ export default function AdminPage() {
 
   const handleCategoryDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this category?')) {
-      await fetch(`/api/categories/${id}`, { method: 'DELETE' })
-      fetchCategories()
+      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json()
+        if (data.error?.includes('Cannot delete category with boards')) {
+          alert('Cannot delete category with boards. Please delete all boards in this category first.')
+        } else {
+          alert('Failed to delete category.')
+        }
+      } else {
+        await fetchCategories()
+        window.dispatchEvent(new Event('refreshBoardMenu'));
+        window.dispatchEvent(new Event('refreshCategoryMenu'));
+      }
     }
   }
 
   const handleBoardDelete = async (id: number, slug: string) => {
     if (confirm('Are you sure you want to delete this board?')) {
-      await fetch(`/api/boards/${slug}`, { method: 'DELETE' })
-      fetchCategories()
+      const res = await fetch(`/api/boards?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json()
+        if (data.error?.includes('Cannot delete board with posts')) {
+          alert('Cannot delete board with posts. Please delete all posts in this board first.')
+        } else {
+          alert('Failed to delete board.')
+        }
+      } else {
+        await fetchCategories()
+        window.dispatchEvent(new Event('refreshBoardMenu'));
+        window.dispatchEvent(new Event('refreshCategoryMenu'));
+      }
     }
   }
 
@@ -948,7 +980,9 @@ export default function AdminPage() {
       body: JSON.stringify({ name, description }),
     })
     setInlineEditingCategoryId(null)
-    fetchCategories() // 수정 후 즉시 최신 데이터 반영
+    await fetchCategories()
+    window.dispatchEvent(new Event('refreshBoardMenu'));
+    window.dispatchEvent(new Event('refreshCategoryMenu'));
   }
 
   // pinned posts 탭 진입 시 전체 posts fetch
@@ -1356,36 +1390,40 @@ export default function AdminPage() {
                 {posts
                   .filter((post: Post) => !post.isNotice && String(post.boardId) === String(boardId))
                   .sort((a: Post, b: Post) => {
-                    if (sortBy === 'createdAt') {
-                      return sortOrder === 'desc'
-                        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                    } else if (sortBy === 'score') {
-                      const scoreA = (a.likes || 0) - (a.dislikes || 0)
-                      const scoreB = (b.likes || 0) - (b.dislikes || 0)
-                      return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+                    if (a.isPinned === b.isPinned) {
+                      // 기존 정렬(날짜, 점수 등) 유지
+                      if (sortBy === 'createdAt') {
+                        return sortOrder === 'desc'
+                          ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                          : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                      } else if (sortBy === 'score') {
+                        const scoreA = (a.likes || 0) - (a.dislikes || 0)
+                        const scoreB = (b.likes || 0) - (b.dislikes || 0)
+                        return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+                      }
+                      return 0
                     }
-                    return 0
+                    return a.isPinned ? -1 : 1 // 핀된 글이 먼저
                   })
                   .map((post: Post) => (
                     <div key={post.id} className="p-3 border rounded bg-white flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-gray-900 truncate">
-                          {post.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
-                          {post.isPinned && <span className="text-blue-600 mr-2">[Pinned]</span>}
+                          {post.isNotice && <span className="text-red-600 mr-2">[공지]</span>}
+                          {post.isPinned && <span className="text-blue-600 mr-2">[고정]</span>}
                           {post.title}
                         </div>
-                        <div className="text-gray-900 font-bold">Author: {post.user?.name || 'Anonymous'}</div>
-                        <div className="text-gray-900 font-bold">Date: {new Date(post.createdAt).toLocaleDateString()}</div>
+                        <div className="text-gray-900 font-bold">작성자: {post.user?.name || 'Anonymous'}</div>
+                        <div className="text-gray-900 font-bold">등록일: {new Date(post.createdAt).toLocaleDateString()}</div>
                         <div className="text-gray-900 font-bold">
                           Score: {Number(post.likes) - Number(post.dislikes)}
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => setSelectedPost(post)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Detail</button>
+                        <button onClick={() => setSelectedPost(post)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">상세</button>
                         <button 
                           onClick={() => handlePin(post, !post.isPinned)} 
-                          className={`px-3 py-1 rounded font-bold ${post.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}
+                          className={`px-3 py-1 rounded ${post.isPinned ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-yellow-500`}
                         >
                           {post.isPinned ? 'Unpin' : 'Pin'}
                         </button>
@@ -1398,19 +1436,19 @@ export default function AdminPage() {
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                      className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
                     >
-                      Prev
+                      이전
                     </button>
-                    <span className="px-3 py-1 text-gray-900 font-bold">
+                    <span className="px-3 py-1">
                       {page} / {totalPages}
                     </span>
                     <button
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
-                      className="px-3 py-1 bg-gray-300 text-gray-900 rounded disabled:opacity-50 font-bold"
+                      className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
                     >
-                      Next
+                      다음
                     </button>
                   </div>
                 )}
@@ -1418,17 +1456,17 @@ export default function AdminPage() {
             ) : (
               <div className="p-4 border rounded bg-white">
                 <h3 className="text-lg font-bold mb-2 text-gray-900">
-                  {selectedPost.isNotice && <span className="text-red-600 mr-2">[Notice]</span>}
-                  {selectedPost.isPinned && <span className="text-blue-600 mr-2">[Pinned]</span>}
+                  {selectedPost.isNotice && <span className="text-red-600 mr-2">[공지]</span>}
+                  {selectedPost.isPinned && <span className="text-blue-600 mr-2">[고정]</span>}
                   {selectedPost.title}
                 </h3>
-                <div className="mb-2 text-gray-900 whitespace-pre-line font-bold">{selectedPost.content}</div>
-                <div className="mb-2 text-gray-900 font-bold">Author: {selectedPost.user?.name || 'Anonymous'}</div>
-                <div className="text-gray-900 font-bold">Date: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
+                <div className="mb-2 text-gray-900 whitespace-pre-line">{selectedPost.content}</div>
+                <div className="mb-2 text-gray-900 font-bold">작성자: {selectedPost.user?.name || 'Anonymous'}</div>
+                <div className="text-gray-900 font-bold">등록일: {new Date(selectedPost.createdAt).toLocaleDateString()}</div>
                 <div className="flex gap-2 mt-4">
-                  <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded font-bold ${selectedPost.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
-                  <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">Delete</button>
-                  <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-900 font-bold">Back to List</button>
+                  <button onClick={() => handlePin(selectedPost, !selectedPost.isPinned)} className={`px-3 py-1 rounded ${selectedPost.isPinned ? 'bg-yellow-500 text-white' : 'bg-gray-300 text-gray-900'} hover:bg-yellow-600`}>{selectedPost.isPinned ? 'Unpin' : 'Pin'}</button>
+                  <button onClick={() => handleDelete(selectedPost)} className="px-3 py-1 bg-red-600 text-white font-bold rounded hover:bg-red-700">삭제</button>
+                  <button onClick={() => setSelectedPost(null)} className="px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500">목록</button>
                 </div>
               </div>
             )}
